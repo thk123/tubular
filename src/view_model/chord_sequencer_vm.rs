@@ -1,20 +1,31 @@
 use std::{
-    cell::{Ref, RefCell},
+    cell::RefCell,
     rc::Rc,
 };
 
 use crate::{
     data_types::{chord_degree::ChordDegree, tatum::Tatum},
-    model::{chord_sequence::ChordSequence, gui_state::GuiState, project_state::ProjectState},
+    model::{
+        chord_sequence::ChordSequence, gui_state::{self, GuiState}, make_application_state, project_state::ProjectState
+    },
 };
 
-#[derive(Default)]
 pub(crate) struct ChordSequencerVm {
     gui_state: Rc<RefCell<GuiState>>,
     project_state: Rc<RefCell<ProjectState>>,
 }
 
 impl ChordSequencerVm {
+    pub fn new(
+        gui_state: Rc<RefCell<GuiState>>,
+        project_state: Rc<RefCell<ProjectState>>,
+    ) -> ChordSequencerVm {
+        ChordSequencerVm {
+            gui_state,
+            project_state,
+        }
+    }
+
     pub fn move_left(self: &mut Self) {
         self.change_chord(-1);
     }
@@ -48,7 +59,8 @@ impl ChordSequencerVm {
 
 #[test]
 fn test_move_left() {
-    let mut vm = ChordSequencerVm::default();
+    let (project_state, gui_state) = make_application_state();
+    let mut vm = ChordSequencerVm::new(Rc::new(RefCell::new(gui_state)), Rc::new(RefCell::new(project_state)));
     vm.move_left();
     assert_eq!(
         vm.gui_state.as_ref().borrow().selected_chord,
@@ -58,7 +70,8 @@ fn test_move_left() {
 
 #[test]
 fn test_move_right() {
-    let mut vm = ChordSequencerVm::default();
+    let (project_state, gui_state) = make_application_state();
+    let mut vm = ChordSequencerVm::new(Rc::new(RefCell::new(gui_state)), Rc::new(RefCell::new(project_state)));
     vm.move_right();
     assert_eq!(
         vm.gui_state.as_ref().borrow().selected_chord,
@@ -68,7 +81,8 @@ fn test_move_right() {
 
 #[test]
 fn test_set_chord() {
-    let mut vm = ChordSequencerVm::default();
+    let (project_state, gui_state) = make_application_state();
+    let mut vm = ChordSequencerVm::new(Rc::new(RefCell::new(gui_state)), Rc::new(RefCell::new(project_state)));
     vm.move_right();
     vm.set_chord(Some(ChordDegree::II));
     assert_eq!(
@@ -79,15 +93,17 @@ fn test_set_chord() {
 
 #[test]
 fn get_chord_sequence() {
-    let mut vm = ChordSequencerVm::default();
+    let (mut project_state, gui_state) = make_application_state();
     let chord_sequence = ChordSequence::new(Vec::from([Some(ChordDegree::II)])).unwrap();
-    vm.project_state.borrow_mut().chord_sequence = chord_sequence.clone();
+    project_state.chord_sequence = chord_sequence.clone();
+    let mut vm = ChordSequencerVm::new(Rc::new(RefCell::new(gui_state)), Rc::new(RefCell::new(project_state)));
     assert_eq!(&vm.chord_sequence(), &chord_sequence);
 }
 
 #[test]
 fn get_selected_chord() {
-    let mut vm = ChordSequencerVm::default();
-    vm.gui_state.borrow_mut().selected_chord = Tatum::try_from(10).unwrap();
+    let (project_state, mut gui_state) = make_application_state();
+    gui_state.selected_chord = Tatum::try_from(10).unwrap();
+    let mut vm = ChordSequencerVm::new(Rc::new(RefCell::new(gui_state)), Rc::new(RefCell::new(project_state)));
     assert_eq!(vm.selected_chord(), Tatum::try_from(10).unwrap());
 }

@@ -1,4 +1,4 @@
-use std::{fmt::Error, ops::{Index, IndexMut}};
+use std::{ops::{Index, IndexMut}, slice::Iter};
 
 use crate::data_types::{chord_degree::ChordDegree, tatum::{self, Tatum, TATUM_SUBDIVDISONS_PER_BAR}};
 
@@ -27,6 +27,10 @@ impl ChordSequence{
             }
             return Ok(chord_sequence);
         }
+    }
+
+    pub fn iter(&self) -> Iter<Option<ChordDegree>> {
+        self.chords.iter()
     }
 }
 
