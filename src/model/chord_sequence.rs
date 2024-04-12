@@ -1,6 +1,6 @@
-use std::ops::{Index, IndexMut};
+use std::{fmt::Error, ops::{Index, IndexMut}};
 
-use crate::data_types::{chord_degree::ChordDegree, tatum::{self, Tatum}};
+use crate::data_types::{chord_degree::ChordDegree, tatum::{self, Tatum, TATUM_SUBDIVDISONS_PER_BAR}};
 
 pub(crate) struct ChordSequence {
     chords: Vec<Option<ChordDegree>>,
@@ -12,6 +12,38 @@ impl Default for ChordSequence {
             chords: vec![None; tatum::TATUM_SUBDIVDISONS_PER_BAR],
         }
     }
+}
+
+impl ChordSequence{
+    fn new(chords: Vec<Option<ChordDegree>>) -> Result<ChordSequence, &'static str>{
+        if chords.len() > TATUM_SUBDIVDISONS_PER_BAR { return Err("Invalid chord sequence"); }
+        if chords.len() == TATUM_SUBDIVDISONS_PER_BAR { return Ok(ChordSequence{chords: chords}); }
+        else {
+            let mut chord_sequence = ChordSequence::default();
+            for (index, &c) in chords.iter().enumerate()
+            {
+                chord_sequence.chords[index] = c;
+            }
+            return Ok(chord_sequence);
+        }
+    }
+}
+
+#[test]
+fn new_chord_sequence_from_too_long_array() {
+    assert!(ChordSequence::new(Vec::from([None; 17])).is_err());
+}
+
+#[test]
+fn new_chord_sequence_from_right_length_array() {
+    assert_eq!(ChordSequence::new(Vec::from([Some(ChordDegree::II); 16])).unwrap().chords, Vec::from([Some(ChordDegree::II); 16]));
+}
+
+#[test]
+fn new_chord_sequence_from_short_array() {
+    let mut expected_array = Vec::from(Vec::from([Some(ChordDegree::II); 4]));
+    expected_array.extend([None; 12]);
+    assert_eq!(ChordSequence::new(Vec::from([Some(ChordDegree::II); 4])).unwrap().chords, expected_array);
 }
 
 impl Index<Tatum> for ChordSequence {
