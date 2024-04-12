@@ -2,7 +2,10 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     data_types::{chord_degree::ChordDegree, tatum::Tatum},
-    model::{chord_sequence::ChordSequence, gui_state::GuiState, project_state::ProjectState},
+    model::{
+        chord_sequence::ChordSequence, gui_state::GuiState, make_application_state,
+        project_state::ProjectState,
+    },
 };
 
 pub(crate) struct ChordSequencerVm {
