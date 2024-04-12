@@ -5,5 +5,5 @@ pub mod gui_state;
 pub mod project_state;
 
 pub fn make_application_state() -> (ProjectState, GuiState) {
-    return (ProjectState::default(), GuiState::default())
+    (ProjectState::default(), GuiState::default())
 }

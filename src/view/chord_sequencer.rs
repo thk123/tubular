@@ -2,7 +2,7 @@ use eframe::egui::{self, Color32, FontId, RichText};
 
 use crate::{data_types::tatum::Tatum, view_model::chord_sequencer_vm::ChordSequencerVm};
 
-pub(crate) fn update(vm: &mut ChordSequencerVm, ctx: &egui::Context, frame: &mut eframe::Frame) {
+pub(crate) fn update(vm: &mut ChordSequencerVm, ctx: &egui::Context, _frame: &mut eframe::Frame) {
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.horizontal(|ui| {
             for (index, chord) in vm

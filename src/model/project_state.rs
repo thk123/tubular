@@ -1,6 +1,6 @@
-use crate::data_types::{chord_degree::{self, ChordDegree}, tatum::Tatum};
+use crate::data_types::{chord_degree::{ChordDegree}, tatum::Tatum};
 
-use super::chord_sequence::{self, ChordSequence};
+use super::chord_sequence::{ChordSequence};
 
 #[derive(Default)]
 pub(crate) struct ProjectState {
@@ -9,7 +9,7 @@ pub(crate) struct ProjectState {
 
 impl ProjectState {
     pub fn update_chord_sequence(
-        self: &mut Self,
+        &mut self,
         chord_position: Tatum,
         new_chord: Option<ChordDegree>,
     ) {

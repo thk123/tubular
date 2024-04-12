@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
-use model::{gui_state::{self, GuiState}, make_application_state, project_state::{self, ProjectState}};
-use view_model::chord_sequencer_vm::{self, ChordSequencerVm};
+use model::{gui_state::{GuiState}, make_application_state, project_state::{ProjectState}};
+use view_model::chord_sequencer_vm::{ChordSequencerVm};
 
 pub mod view;
 pub mod view_model;

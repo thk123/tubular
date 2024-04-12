@@ -6,7 +6,7 @@ use std::{
 use crate::{
     data_types::{chord_degree::ChordDegree, tatum::Tatum},
     model::{
-        chord_sequence::ChordSequence, gui_state::{self, GuiState}, make_application_state, project_state::ProjectState
+        chord_sequence::ChordSequence, gui_state::{GuiState}, project_state::ProjectState
     },
 };
 
@@ -26,13 +26,13 @@ impl ChordSequencerVm {
         }
     }
 
-    pub fn move_left(self: &mut Self) {
+    pub fn move_left(&mut self) {
         self.change_chord(-1);
     }
-    pub fn move_right(self: &mut Self) {
+    pub fn move_right(&mut self) {
         self.change_chord(1);
     }
-    pub fn set_chord(self: &mut Self, chord_degree: Option<ChordDegree>) {
+    pub fn set_chord(&mut self, chord_degree: Option<ChordDegree>) {
         self.project_state
             .as_ref()
             .borrow_mut()

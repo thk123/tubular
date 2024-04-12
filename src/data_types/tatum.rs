@@ -11,7 +11,7 @@ impl TryFrom<usize> for Tatum {
         if value >= TATUM_SUBDIVDISONS_PER_BAR {
             return Err("Tatum index that is larger than number of subdivisions");
         }
-        return Ok(Tatum(value));
+        Ok(Tatum(value))
     }
 }
 
