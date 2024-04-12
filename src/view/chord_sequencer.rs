@@ -1,6 +1,43 @@
 use eframe::egui::{self, Color32, FontId, Key, RichText};
 
-use crate::{data_types::tatum::Tatum, view_model::chord_sequencer_vm::ChordSequencerVm};
+use crate::{
+    data_types::{chord_degree::ChordDegree, tatum::Tatum},
+    view_model::chord_sequencer_vm::ChordSequencerVm,
+};
+
+fn numeric_key_pressed(input_state: &egui::InputState) -> Option<ChordDegree> {
+    if input_state.key_pressed(Key::Num0) {
+        return None;
+    }
+    if input_state.key_pressed(Key::Num1) {
+        return Some(ChordDegree::I);
+    }
+    if input_state.key_pressed(Key::Num2) {
+        return Some(ChordDegree::II);
+    }
+    if input_state.key_pressed(Key::Num3) {
+        return Some(ChordDegree::III);
+    }
+    if input_state.key_pressed(Key::Num4) {
+        return Some(ChordDegree::IV);
+    }
+    if input_state.key_pressed(Key::Num5) {
+        return Some(ChordDegree::V);
+    }
+    if input_state.key_pressed(Key::Num6) {
+        return Some(ChordDegree::VI);
+    }
+    if input_state.key_pressed(Key::Num7) {
+        return Some(ChordDegree::VII);
+    }
+    if input_state.key_pressed(Key::Num8) {
+        return None;
+    }
+    if input_state.key_pressed(Key::Num9) {
+        return None;
+    }
+    None
+}
 
 pub(crate) fn update(vm: &mut ChordSequencerVm, ctx: &egui::Context, _frame: &mut eframe::Frame) {
     if ctx.input(|i| i.key_pressed(Key::ArrowLeft)) {
@@ -9,6 +46,15 @@ pub(crate) fn update(vm: &mut ChordSequencerVm, ctx: &egui::Context, _frame: &mu
 
     if ctx.input(|i| i.key_pressed(Key::ArrowRight)) {
         vm.move_right();
+    }
+
+    match ctx.input(numeric_key_pressed) {
+        Some(chord_degree) => vm.set_chord(Some(chord_degree)),
+        None => {}
+    }
+
+    if ctx.input(|i| i.key_pressed(Key::Backspace)) {
+        vm.set_chord(None);
     }
 
     egui::CentralPanel::default().show(ctx, |ui| {
