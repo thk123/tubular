@@ -15,7 +15,7 @@ impl Default for ChordSequence {
 }
 
 impl ChordSequence{
-    fn new(chords: Vec<Option<ChordDegree>>) -> Result<ChordSequence, &'static str>{
+    pub fn new(chords: Vec<Option<ChordDegree>>) -> Result<ChordSequence, &'static str>{
         if chords.len() > TATUM_SUBDIVDISONS_PER_BAR { return Err("Invalid chord sequence"); }
         if chords.len() == TATUM_SUBDIVDISONS_PER_BAR { return Ok(ChordSequence{chords: chords}); }
         else {
