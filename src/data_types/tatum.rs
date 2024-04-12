@@ -1,7 +1,7 @@
 // TODO: in future Tatum should be derived from the ChordSequence
 pub(crate) const TATUM_SUBDIVDISONS_PER_BAR: usize = 16;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub(crate) struct Tatum(usize);
 
 impl TryFrom<usize> for Tatum {

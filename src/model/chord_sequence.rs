@@ -2,6 +2,7 @@ use std::{fmt::Error, ops::{Index, IndexMut}};
 
 use crate::data_types::{chord_degree::ChordDegree, tatum::{self, Tatum, TATUM_SUBDIVDISONS_PER_BAR}};
 
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) struct ChordSequence {
     chords: Vec<Option<ChordDegree>>,
 }

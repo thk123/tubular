@@ -2,6 +2,7 @@ use crate::data_types::{chord_degree::{self, ChordDegree}, tatum::Tatum};
 
 use super::chord_sequence::{self, ChordSequence};
 
+#[derive(Default)]
 pub(crate) struct ProjectState {
     pub chord_sequence: ChordSequence,
 }
