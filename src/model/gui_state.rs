@@ -6,6 +6,8 @@ pub(crate) struct GuiState {
 
 impl Default for GuiState {
     fn default() -> Self {
-        Self { selected_chord: Tatum::try_from(0).unwrap() }
+        Self {
+            selected_chord: Tatum::try_from(0).unwrap(),
+        }
     }
 }

@@ -1,6 +1,5 @@
 use std::fmt;
 
-
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) enum ChordDegree {
