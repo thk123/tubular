@@ -1,4 +1,8 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
     data_types::{chord_degree::ChordDegree, tatum::Tatum},
@@ -10,13 +14,13 @@ use crate::{
 
 pub(crate) struct ChordSequencerVm {
     gui_state: Rc<RefCell<GuiState>>,
-    project_state: Rc<RefCell<ProjectState>>,
+    project_state: Arc<RwLock<ProjectState>>,
 }
 
 impl ChordSequencerVm {
     pub fn new(
         gui_state: Rc<RefCell<GuiState>>,
-        project_state: Rc<RefCell<ProjectState>>,
+        project_state: Arc<RwLock<ProjectState>>,
     ) -> ChordSequencerVm {
         ChordSequencerVm {
             gui_state,
@@ -33,7 +37,8 @@ impl ChordSequencerVm {
     pub fn set_chord(&mut self, chord_degree: Option<ChordDegree>) {
         self.project_state
             .as_ref()
-            .borrow_mut()
+            .write()
+            .unwrap()
             .update_chord_sequence(
                 self.gui_state.as_ref().borrow().selected_chord,
                 chord_degree,
@@ -42,7 +47,13 @@ impl ChordSequencerVm {
 
     pub fn chord_sequence(&mut self) -> ChordSequence {
         // TODO: why do we have to clone the sequence, ideally want to extend the lifetime of this reference
-        return self.project_state.as_ref().borrow().chord_sequence.clone();
+        return self
+            .project_state
+            .as_ref()
+            .read()
+            .unwrap()
+            .chord_sequence
+            .clone();
     }
 
     pub fn selected_chord(&mut self) -> Tatum {
@@ -60,7 +71,7 @@ fn test_move_left() {
     let (project_state, gui_state) = make_application_state();
     let mut vm = ChordSequencerVm::new(
         Rc::new(RefCell::new(gui_state)),
-        Rc::new(RefCell::new(project_state)),
+        Arc::new(RwLock::new(project_state)),
     );
     vm.move_left();
     assert_eq!(
@@ -74,7 +85,7 @@ fn test_move_right() {
     let (project_state, gui_state) = make_application_state();
     let mut vm = ChordSequencerVm::new(
         Rc::new(RefCell::new(gui_state)),
-        Rc::new(RefCell::new(project_state)),
+        Arc::new(RwLock::new(project_state)),
     );
     vm.move_right();
     assert_eq!(
@@ -88,12 +99,12 @@ fn test_set_chord() {
     let (project_state, gui_state) = make_application_state();
     let mut vm = ChordSequencerVm::new(
         Rc::new(RefCell::new(gui_state)),
-        Rc::new(RefCell::new(project_state)),
+        Arc::new(RwLock::new(project_state)),
     );
     vm.move_right();
     vm.set_chord(Some(ChordDegree::II));
     assert_eq!(
-        vm.project_state.as_ref().borrow().chord_sequence[Tatum::try_from(1).unwrap()],
+        vm.project_state.as_ref().read().unwrap().chord_sequence[Tatum::try_from(1).unwrap()],
         Some(ChordDegree::II)
     );
 }
@@ -105,7 +116,7 @@ fn get_chord_sequence() {
     project_state.chord_sequence = chord_sequence.clone();
     let mut vm = ChordSequencerVm::new(
         Rc::new(RefCell::new(gui_state)),
-        Rc::new(RefCell::new(project_state)),
+        Arc::new(RwLock::new(project_state)),
     );
     assert_eq!(&vm.chord_sequence(), &chord_sequence);
 }
@@ -116,7 +127,7 @@ fn get_selected_chord() {
     gui_state.selected_chord = Tatum::try_from(10).unwrap();
     let mut vm = ChordSequencerVm::new(
         Rc::new(RefCell::new(gui_state)),
-        Rc::new(RefCell::new(project_state)),
+        Arc::new(RwLock::new(project_state)),
     );
     assert_eq!(vm.selected_chord(), Tatum::try_from(10).unwrap());
 }
