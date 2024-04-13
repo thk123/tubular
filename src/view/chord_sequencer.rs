@@ -48,9 +48,8 @@ pub(crate) fn update(vm: &mut ChordSequencerVm, ctx: &egui::Context, _frame: &mu
         vm.move_right();
     }
 
-    match ctx.input(numeric_key_pressed) {
-        Some(chord_degree) => vm.set_chord(Some(chord_degree)),
-        None => {}
+    if let Some(chord_degree) = ctx.input(numeric_key_pressed) {
+        vm.set_chord(Some(chord_degree))
     }
 
     if ctx.input(|i| i.key_pressed(Key::Backspace)) {

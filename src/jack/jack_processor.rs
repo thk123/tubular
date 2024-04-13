@@ -16,7 +16,7 @@ impl JackProcessor {
         let (client, _status) =
             jack::Client::new("tubular", jack::ClientOptions::NO_START_SERVER).unwrap();
         let chord_port = client
-            .register_port("chords", jack::MidiOut::default())
+            .register_port("chords", jack::MidiOut)
             .unwrap();
 
         let client_handler = JackProcessor {

@@ -6,10 +6,7 @@ use std::{
 
 use crate::{
     data_types::{chord_degree::ChordDegree, tatum::Tatum},
-    model::{
-        chord_sequence::ChordSequence, gui_state::GuiState, make_application_state,
-        project_state::ProjectState,
-    },
+    model::{chord_sequence::ChordSequence, gui_state::GuiState, project_state::ProjectState},
 };
 
 pub(crate) struct ChordSequencerVm {
@@ -68,7 +65,7 @@ impl ChordSequencerVm {
 
 #[test]
 fn test_move_left() {
-    let (project_state, gui_state) = make_application_state();
+    let (project_state, gui_state) = crate::model::make_application_state();
     let mut vm = ChordSequencerVm::new(
         Rc::new(RefCell::new(gui_state)),
         Arc::new(RwLock::new(project_state)),
