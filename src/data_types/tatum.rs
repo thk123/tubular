@@ -36,32 +36,37 @@ fn test_create_valid_tatums() {
     assert_eq!(Tatum::try_from(15).unwrap().0, 15);
 }
 
-#[test]
-fn test_create_invalid_tatum() {
-    assert!(Tatum::try_from(16).is_err());
-}
+#[cfg(test)]
+mod tests {
+    use crate::data_types::tatum::Tatum;
 
-#[test]
-fn add_offset_to_tatum_increments() {
-    assert_eq!(Tatum(1).add(1).0, 2);
-}
+    #[test]
+    fn test_create_invalid_tatum() {
+        assert!(Tatum::try_from(16).is_err());
+    }
 
-#[test]
-fn subtract_offset_to_tatum_decrements() {
-    assert_eq!(Tatum(1).add(-1).0, 0);
-}
+    #[test]
+    fn add_offset_to_tatum_increments() {
+        assert_eq!(Tatum(1).add(1).0, 2);
+    }
 
-#[test]
-fn subtract_offset_to_tatum_wraps_around() {
-    assert_eq!(Tatum(0).add(-1).0, 15);
-}
+    #[test]
+    fn subtract_offset_to_tatum_decrements() {
+        assert_eq!(Tatum(1).add(-1).0, 0);
+    }
 
-#[test]
-fn add_offset_to_tatum_wraps_around() {
-    assert_eq!(Tatum(15).add(1).0, 0);
-}
+    #[test]
+    fn subtract_offset_to_tatum_wraps_around() {
+        assert_eq!(Tatum(0).add(-1).0, 15);
+    }
 
-#[test]
-fn add_large_offset_to_tatum_wraps_around() {
-    assert_eq!(Tatum(15).add(32).0, 15);
+    #[test]
+    fn add_offset_to_tatum_wraps_around() {
+        assert_eq!(Tatum(15).add(1).0, 0);
+    }
+
+    #[test]
+    fn add_large_offset_to_tatum_wraps_around() {
+        assert_eq!(Tatum(15).add(32).0, 15);
+    }
 }
