@@ -3,18 +3,14 @@ use std::ops::Mul;
 use jack::Frames;
 
 use crate::{
-    data_types::{
-        chord_degree::{ChordDegree},
-        note::Note,
-        tatum::Tatum,
-    },
+    data_types::{chord_degree::ChordDegree, note::Note, tatum::Tatum},
     model::{chord_sequence::ChordSequence, project_time_info::ProjectTimeInfo},
     music_theory::chords::chord_degreee_to_notes,
 };
 
 use super::timing_info::{FramesPerTatum, TimingInfo};
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, PartialOrd)]
 pub(crate) struct FrameOffset(u32);
 
 impl From<u32> for FrameOffset {

@@ -1,6 +1,6 @@
 use std::ops::Add;
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, Hash)]
 pub(crate) struct Note(u8);
 
 impl Add<u8> for Note {
