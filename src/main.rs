@@ -12,6 +12,7 @@ use view_model::chord_sequencer_vm::ChordSequencerVm;
 pub mod data_types;
 pub mod jack;
 pub mod model;
+pub mod music_theory;
 pub mod view;
 pub mod view_model;
 
