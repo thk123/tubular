@@ -4,7 +4,7 @@ use jack::Frames;
 
 use crate::{
     data_types::{
-        chord_degree::{self, ChordDegree},
+        chord_degree::{ChordDegree},
         note::Note,
         tatum::Tatum,
     },
@@ -56,7 +56,7 @@ fn get_time_of_event_relative_to_bar(
     project_time_info: &ProjectTimeInfo,
     timing_info: &TimingInfo,
 ) -> FrameOffset {
-    tatums_into_bar * timing_info.frames_per_tatum(&project_time_info)
+    tatums_into_bar * timing_info.frames_per_tatum(project_time_info)
 }
 
 type EventTypeCreator = fn(Note) -> MidiEvent;
@@ -67,7 +67,7 @@ fn event_for_chord(
     event_type: EventTypeCreator,
 ) -> [Event; 3] {
     let notes = chord_degreee_to_notes(chord);
-    notes.map(|note| event_type(note)).map(|midi_event| Event {
+    notes.map(event_type).map(|midi_event| Event {
         bar_offset_frames: time,
         event: midi_event,
     })
@@ -82,7 +82,7 @@ pub(crate) fn chord_sequence_to_frame_offset(
     let mut events = vec![];
     for (index, chord) in sequence.iter().enumerate() {
         let tatum = Tatum::try_from(index).unwrap();
-        let event_time = get_time_of_event_relative_to_bar(tatum, &project_time_info, &timing_info);
+        let event_time = get_time_of_event_relative_to_bar(tatum, project_time_info, timing_info);
         if let Some(last_chord_played) = last_chord {
             let midi_events = event_for_chord(last_chord_played, event_time, MidiEvent::NoteOff);
             events.extend(midi_events);
@@ -98,7 +98,7 @@ pub(crate) fn chord_sequence_to_frame_offset(
     if let Some(last_chord_played) = last_chord {
         let midi_events = event_for_chord(
             last_chord_played,
-            timing_info.frames_end_of_bar(&project_time_info),
+            timing_info.frames_end_of_bar(project_time_info),
             MidiEvent::NoteOff,
         );
         events.extend(midi_events);

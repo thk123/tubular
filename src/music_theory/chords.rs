@@ -14,7 +14,7 @@ fn diminished_triad(root_note: Note) -> [Note; 3] {
 
 pub(crate) fn chord_degreee_to_notes(chord_degree: &ChordDegree) -> [Note; 3] {
     let root_note = Note::from(60);
-    return match chord_degree {
+    match chord_degree {
         ChordDegree::I => major_triad(root_note),
         ChordDegree::II => minor_triad(root_note + 2),
         ChordDegree::III => minor_triad(root_note + 4),
@@ -22,5 +22,5 @@ pub(crate) fn chord_degreee_to_notes(chord_degree: &ChordDegree) -> [Note; 3] {
         ChordDegree::V => major_triad(root_note + 7),
         ChordDegree::VI => minor_triad(root_note + 9),
         ChordDegree::VII => diminished_triad(root_note + 11),
-    };
+    }
 }

@@ -1,5 +1,4 @@
 use std::{
-    ops::Deref,
     sync::{Arc, RwLock},
 };
 
@@ -57,7 +56,7 @@ fn frames_of_next_offset(
     jack_timing_info: &TimingInfo,
     project_timing_info: &ProjectTimeInfo,
 ) -> Frames {
-    let frames_per_bar = jack_timing_info.frames_per_bar(&project_timing_info);
+    let frames_per_bar = jack_timing_info.frames_per_bar(project_timing_info);
     let frames_since_start_of_last_bar = frames_per_bar.frames_through_bar(&last_frame_time);
 
     let frames_til_next_bar = frames_per_bar - frames_since_start_of_last_bar;
@@ -68,7 +67,7 @@ fn frames_of_next_offset(
     if time_in_current_bar >= last_frame_time {
         return time_in_current_bar;
     }
-    return time_in_next_bar;
+    time_in_next_bar
 }
 
 fn is_upcoming_event(
@@ -96,9 +95,9 @@ fn get_midi_events_for_next_n_frames(
     project_timing_info: &ProjectTimeInfo,
 ) -> Vec<(u32, MidiMsg)> {
     let sequence = sequence_translation::chord_sequence_to_frame_offset(
-        &current_chord_sequence,
-        &jack_timing_info,
-        &project_timing_info,
+        current_chord_sequence,
+        jack_timing_info,
+        project_timing_info,
     );
 
     // TODO: if the sequence has changed we might have lingering notes that need to be turned off
@@ -110,8 +109,8 @@ fn get_midi_events_for_next_n_frames(
                 event.bar_offset_frames,
                 last_frame_time,
                 n_frames,
-                &jack_timing_info,
-                &project_timing_info,
+                jack_timing_info,
+                project_timing_info,
             )
         })
         .map(|event| {
@@ -134,8 +133,8 @@ fn get_midi_events_for_next_n_frames(
             let time = frames_of_next_offset(
                 last_frame_time,
                 event.bar_offset_frames,
-                &jack_timing_info,
-                &project_timing_info,
+                jack_timing_info,
+                project_timing_info,
             );
             assert!(time >= last_frame_time);
             let frames_to_go = time - last_frame_time;
@@ -151,7 +150,7 @@ fn get_midi_events_for_next_n_frames(
 impl ProcessHandler for JackProcessor {
     fn process(&mut self, _: &jack::Client, _process_scope: &jack::ProcessScope) -> jack::Control {
         let current_project_state = self.project_state.read().unwrap();
-        let sequence = sequence_translation::chord_sequence_to_frame_offset(
+        let _sequence = sequence_translation::chord_sequence_to_frame_offset(
             &current_project_state.chord_sequence,
             &self.jack_timing_info,
             &current_project_state.time,
@@ -170,7 +169,7 @@ impl ProcessHandler for JackProcessor {
             assert!(time < _process_scope.n_frames());
             chord_port_writer
                 .write(&jack::RawMidi {
-                    time: time,
+                    time,
                     bytes: &upcoming_event.to_midi(),
                 })
                 .unwrap();
@@ -183,7 +182,7 @@ impl ProcessHandler for JackProcessor {
 #[cfg(test)]
 mod tests {
 
-    use midi_msg::{Channel, ChannelVoiceMsg, MidiMsg};
+    
 
     use crate::{
         data_types::{beats_per_minute::BeatsPerMinute, chord_degree::ChordDegree},
@@ -193,7 +192,7 @@ mod tests {
             timing_info::{FramesPerSecond, TimingInfo},
         },
         model::{
-            chord_sequence::{self, ChordSequence},
+            chord_sequence::{ChordSequence},
             project_time_info::ProjectTimeInfo,
         },
     };

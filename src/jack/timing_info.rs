@@ -1,10 +1,10 @@
 use std::ops::{Add, Sub};
 
-use eframe::Frame;
+
 use jack::Frames;
 
 use crate::{
-    data_types::tatum::{self, Tatum},
+    data_types::tatum::{self},
     model::project_time_info::ProjectTimeInfo,
 };
 
@@ -89,13 +89,13 @@ impl TimingInfo {
     }
 
     pub fn frames_per_tatum(&self, time_info: &ProjectTimeInfo) -> FramesPerTatum {
-        let frames_per_beat = self.frames_per_beat(&time_info);
+        let frames_per_beat = self.frames_per_beat(time_info);
         let tatums_per_beat = (tatum::TATUM_SUBDIVDISONS_PER_BAR as u32) / time_info.beats_per_bar;
         FramesPerTatum(frames_per_beat.0 / tatums_per_beat)
     }
 
     pub fn frames_per_bar(&self, time_info: &ProjectTimeInfo) -> FramesPerBar {
-        let frames_per_beat = self.frames_per_beat(&time_info);
+        let frames_per_beat = self.frames_per_beat(time_info);
         FramesPerBar(frames_per_beat.0 * time_info.beats_per_bar)
     }
 
