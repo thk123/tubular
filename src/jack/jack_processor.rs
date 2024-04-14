@@ -3,7 +3,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use eframe::Frame;
 use jack::{AsyncClient, Frames, MidiOut, Port, ProcessHandler};
 use midi_msg::MidiMsg;
 
@@ -89,6 +88,66 @@ fn is_upcoming_event(
     event_frame_time - last_frame_time < n_frames
 }
 
+fn get_midi_events_for_next_n_frames(
+    last_frame_time: Frames,
+    n_frames: Frames,
+    current_chord_sequence: &ChordSequence,
+    jack_timing_info: &TimingInfo,
+    project_timing_info: &ProjectTimeInfo,
+) -> Vec<(u32, MidiMsg)> {
+    let sequence = sequence_translation::chord_sequence_to_frame_offset(
+        &current_chord_sequence,
+        &jack_timing_info,
+        &project_timing_info,
+    );
+
+    // TODO: if the sequence has changed we might have lingering notes that need to be turned off
+
+    let mut upcoming_events: Vec<(u32, MidiMsg)> = sequence
+        .iter()
+        .filter(|&event| {
+            is_upcoming_event(
+                event.bar_offset_frames,
+                last_frame_time,
+                n_frames,
+                &jack_timing_info,
+                &project_timing_info,
+            )
+        })
+        .map(|event| {
+            let midi_event = match event.event {
+                sequence_translation::MidiEvent::NoteOn(note) => MidiMsg::ChannelVoice {
+                    channel: midi_msg::Channel::Ch1,
+                    msg: midi_msg::ChannelVoiceMsg::NoteOn {
+                        note: note.into(),
+                        velocity: 120,
+                    },
+                },
+                sequence_translation::MidiEvent::NoteOff(note) => MidiMsg::ChannelVoice {
+                    channel: midi_msg::Channel::Ch1,
+                    msg: midi_msg::ChannelVoiceMsg::NoteOff {
+                        note: note.into(),
+                        velocity: 64,
+                    },
+                },
+            };
+            let time = frames_of_next_offset(
+                last_frame_time,
+                event.bar_offset_frames,
+                &jack_timing_info,
+                &project_timing_info,
+            );
+            assert!(time >= last_frame_time);
+            let frames_to_go = time - last_frame_time;
+            assert!(frames_to_go < n_frames);
+            (frames_to_go, midi_event)
+        })
+        .collect();
+
+    upcoming_events.sort_by_key(|(time, _midi_message)| *time);
+    upcoming_events
+}
+
 impl ProcessHandler for JackProcessor {
     fn process(&mut self, _: &jack::Client, _process_scope: &jack::ProcessScope) -> jack::Control {
         let current_project_state = self.project_state.read().unwrap();
@@ -98,50 +157,13 @@ impl ProcessHandler for JackProcessor {
             &current_project_state.time,
         );
 
-        // TODO: if the sequence has changed we might have lingering notes that need to be turned off
-
-        let mut upcoming_events: Vec<(u32, MidiMsg)> = sequence
-            .iter()
-            .filter(|&event| {
-                is_upcoming_event(
-                    event.bar_offset_frames,
-                    _process_scope.last_frame_time(),
-                    _process_scope.n_frames(),
-                    &self.jack_timing_info,
-                    &current_project_state.time,
-                )
-            })
-            .map(|event| {
-                let midi_event = match event.event {
-                    sequence_translation::MidiEvent::NoteOn(note) => MidiMsg::ChannelVoice {
-                        channel: midi_msg::Channel::Ch1,
-                        msg: midi_msg::ChannelVoiceMsg::NoteOn {
-                            note: note.into(),
-                            velocity: 120,
-                        },
-                    },
-                    sequence_translation::MidiEvent::NoteOff(note) => MidiMsg::ChannelVoice {
-                        channel: midi_msg::Channel::Ch1,
-                        msg: midi_msg::ChannelVoiceMsg::NoteOff {
-                            note: note.into(),
-                            velocity: 64,
-                        },
-                    },
-                };
-                let time = frames_of_next_offset(
-                    _process_scope.last_frame_time(),
-                    event.bar_offset_frames,
-                    &self.jack_timing_info,
-                    &current_project_state.time,
-                );
-                assert!(time >= _process_scope.last_frame_time());
-                let frames_to_go = time - _process_scope.last_frame_time();
-                assert!(frames_to_go < _process_scope.n_frames());
-                (frames_to_go, midi_event)
-            })
-            .collect();
-
-        upcoming_events.sort_by_key(|(time, _midi_message)| *time);
+        let upcoming_events = get_midi_events_for_next_n_frames(
+            _process_scope.last_frame_time(),
+            _process_scope.n_frames(),
+            &current_project_state.chord_sequence,
+            &self.jack_timing_info,
+            &current_project_state.time,
+        );
 
         let mut chord_port_writer = self.chord_port.writer(_process_scope);
         for (time, upcoming_event) in upcoming_events {
@@ -160,15 +182,23 @@ impl ProcessHandler for JackProcessor {
 
 #[cfg(test)]
 mod tests {
+
+    use midi_msg::{Channel, ChannelVoiceMsg, MidiMsg};
+
     use crate::{
-        data_types::beats_per_minute::BeatsPerMinute,
+        data_types::{beats_per_minute::BeatsPerMinute, chord_degree::ChordDegree},
         jack::{
             jack_processor::{frames_of_next_offset, is_upcoming_event},
             sequence_translation::FrameOffset,
             timing_info::{FramesPerSecond, TimingInfo},
         },
-        model::project_time_info::ProjectTimeInfo,
+        model::{
+            chord_sequence::{self, ChordSequence},
+            project_time_info::ProjectTimeInfo,
+        },
     };
+
+    use super::get_midi_events_for_next_n_frames;
 
     #[test]
     fn test_frame_offset() {
@@ -265,5 +295,100 @@ mod tests {
             &jack_timing_info,
             &project_time_info
         ));
+    }
+
+    #[test]
+    fn test_get_midi_events_for_next_n_frames() {
+        // timing is 80 frames a bar, 20 frames a beat, 5 frames a Tatum
+        let project_time_info = ProjectTimeInfo {
+            bpm: BeatsPerMinute::from(120),
+            beats_per_bar: 4,
+        };
+        let jack_timing_info = TimingInfo {
+            frames_per_second: FramesPerSecond::from(40),
+        };
+
+        let chord_sequence =
+            ChordSequence::new([Some(ChordDegree::I), None, Some(ChordDegree::II)].to_vec())
+                .unwrap();
+
+        let events = get_midi_events_for_next_n_frames(
+            80,
+            10, // processing two tatums
+            &chord_sequence,
+            &jack_timing_info,
+            &project_time_info,
+        );
+
+        let times: Vec<u32> = events.iter().map(|(time, _)| *time).collect();
+        assert_eq!(times, [0, 0, 0, 5, 5, 5]);
+
+        let midi_statuses: Vec<u8> = events
+            .iter()
+            .map(|(_, midi_event)| midi_event.to_midi()[0])
+            .collect();
+        assert_eq!(midi_statuses, [0x90, 0x90, 0x90, 0x80, 0x80, 0x80]);
+
+        let midi_notes: Vec<u8> = events
+            .iter()
+            .map(|(_, midi_event)| midi_event.to_midi()[1])
+            .collect();
+        assert_eq!(midi_notes, [60, 64, 67, 60, 64, 67]);
+    }
+
+    #[test]
+    fn test_get_midi_events_for_next_n_frames_event_from_start_of_next_bar() {
+        // timing is 80 frames a bar, 20 frames a beat, 5 frames a Tatum
+        let project_time_info = ProjectTimeInfo {
+            bpm: BeatsPerMinute::from(120),
+            beats_per_bar: 4,
+        };
+        let jack_timing_info = TimingInfo {
+            frames_per_second: FramesPerSecond::from(40),
+        };
+
+        let chord_sequence =
+            ChordSequence::new([Some(ChordDegree::I), None, Some(ChordDegree::II)].to_vec())
+                .unwrap();
+
+        let events = get_midi_events_for_next_n_frames(
+            86,
+            79, // just shy of a whole bar
+            &chord_sequence,
+            &jack_timing_info,
+            &project_time_info,
+        );
+
+        let times: Vec<u32> = events.iter().map(|(time, _)| *time).collect();
+        let start_of_next_frame = 160 - 86;
+        assert_eq!(
+            times,
+            [
+                4, // Turn on II
+                4,
+                4,
+                9, // Turn of II
+                9,
+                9,
+                start_of_next_frame, // Turn on I at start of next bar
+                start_of_next_frame,
+                start_of_next_frame
+            ]
+        );
+
+        let midi_statuses: Vec<u8> = events
+            .iter()
+            .map(|(_, midi_event)| midi_event.to_midi()[0])
+            .collect();
+        assert_eq!(
+            midi_statuses,
+            [0x90, 0x90, 0x90, 0x80, 0x80, 0x80, 0x90, 0x90, 0x90]
+        );
+
+        let midi_notes: Vec<u8> = events
+            .iter()
+            .map(|(_, midi_event)| midi_event.to_midi()[1])
+            .collect();
+        assert_eq!(midi_notes, [62, 65, 69, 62, 65, 69, 60, 64, 67,]);
     }
 }
