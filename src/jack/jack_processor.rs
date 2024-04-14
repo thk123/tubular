@@ -1,6 +1,4 @@
-use std::{
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use jack::{AsyncClient, Frames, MidiOut, Port, ProcessHandler};
 use midi_msg::MidiMsg;
@@ -90,16 +88,11 @@ fn is_upcoming_event(
 fn get_midi_events_for_next_n_frames(
     last_frame_time: Frames,
     n_frames: Frames,
-    current_chord_sequence: &ChordSequence,
+    sequence: &Vec<Event>,
+    old_sequence: &Vec<Event>,
     jack_timing_info: &TimingInfo,
     project_timing_info: &ProjectTimeInfo,
 ) -> Vec<(u32, MidiMsg)> {
-    let sequence = sequence_translation::chord_sequence_to_frame_offset(
-        current_chord_sequence,
-        jack_timing_info,
-        project_timing_info,
-    );
-
     // TODO: if the sequence has changed we might have lingering notes that need to be turned off
 
     let mut upcoming_events: Vec<(u32, MidiMsg)> = sequence
@@ -150,7 +143,7 @@ fn get_midi_events_for_next_n_frames(
 impl ProcessHandler for JackProcessor {
     fn process(&mut self, _: &jack::Client, _process_scope: &jack::ProcessScope) -> jack::Control {
         let current_project_state = self.project_state.read().unwrap();
-        let _sequence = sequence_translation::chord_sequence_to_frame_offset(
+        let sequence = sequence_translation::chord_sequence_to_frame_offset(
             &current_project_state.chord_sequence,
             &self.jack_timing_info,
             &current_project_state.time,
@@ -159,7 +152,8 @@ impl ProcessHandler for JackProcessor {
         let upcoming_events = get_midi_events_for_next_n_frames(
             _process_scope.last_frame_time(),
             _process_scope.n_frames(),
-            &current_project_state.chord_sequence,
+            &sequence,
+            &self.current_events,
             &self.jack_timing_info,
             &current_project_state.time,
         );
@@ -182,19 +176,14 @@ impl ProcessHandler for JackProcessor {
 #[cfg(test)]
 mod tests {
 
-    
-
     use crate::{
-        data_types::{beats_per_minute::BeatsPerMinute, chord_degree::ChordDegree},
+        data_types::{beats_per_minute::BeatsPerMinute, chord_degree::ChordDegree, note::Note},
         jack::{
             jack_processor::{frames_of_next_offset, is_upcoming_event},
-            sequence_translation::FrameOffset,
+            sequence_translation::{Event, FrameOffset, MidiEvent},
             timing_info::{FramesPerSecond, TimingInfo},
         },
-        model::{
-            chord_sequence::{ChordSequence},
-            project_time_info::ProjectTimeInfo,
-        },
+        model::{chord_sequence::ChordSequence, project_time_info::ProjectTimeInfo},
     };
 
     use super::get_midi_events_for_next_n_frames;
@@ -307,32 +296,40 @@ mod tests {
             frames_per_second: FramesPerSecond::from(40),
         };
 
-        let chord_sequence =
-            ChordSequence::new([Some(ChordDegree::I), None, Some(ChordDegree::II)].to_vec())
-                .unwrap();
+        let event_for_bar = vec![
+            Event {
+                event: MidiEvent::NoteOn(Note::from(60)),
+                bar_offset_frames: FrameOffset::from(0),
+            },
+            Event {
+                event: MidiEvent::NoteOff(Note::from(60)),
+                bar_offset_frames: FrameOffset::from(5),
+            },
+        ];
 
         let events = get_midi_events_for_next_n_frames(
             80,
             10, // processing two tatums
-            &chord_sequence,
+            &event_for_bar,
+            &vec![],
             &jack_timing_info,
             &project_time_info,
         );
 
         let times: Vec<u32> = events.iter().map(|(time, _)| *time).collect();
-        assert_eq!(times, [0, 0, 0, 5, 5, 5]);
+        assert_eq!(times, [0, 5]);
 
         let midi_statuses: Vec<u8> = events
             .iter()
             .map(|(_, midi_event)| midi_event.to_midi()[0])
             .collect();
-        assert_eq!(midi_statuses, [0x90, 0x90, 0x90, 0x80, 0x80, 0x80]);
+        assert_eq!(midi_statuses, [0x90, 0x80]);
 
         let midi_notes: Vec<u8> = events
             .iter()
             .map(|(_, midi_event)| midi_event.to_midi()[1])
             .collect();
-        assert_eq!(midi_notes, [60, 64, 67, 60, 64, 67]);
+        assert_eq!(midi_notes, [60, 60]);
     }
 
     #[test]
@@ -346,14 +343,30 @@ mod tests {
             frames_per_second: FramesPerSecond::from(40),
         };
 
-        let chord_sequence =
-            ChordSequence::new([Some(ChordDegree::I), None, Some(ChordDegree::II)].to_vec())
-                .unwrap();
+        let event_for_bar = vec![
+            Event {
+                event: MidiEvent::NoteOn(Note::from(60)),
+                bar_offset_frames: FrameOffset::from(0),
+            },
+            Event {
+                event: MidiEvent::NoteOff(Note::from(60)),
+                bar_offset_frames: FrameOffset::from(5),
+            },
+            Event {
+                event: MidiEvent::NoteOn(Note::from(62)),
+                bar_offset_frames: FrameOffset::from(10),
+            },
+            Event {
+                event: MidiEvent::NoteOff(Note::from(62)),
+                bar_offset_frames: FrameOffset::from(15),
+            },
+        ];
 
         let events = get_midi_events_for_next_n_frames(
             86,
             79, // just shy of a whole bar
-            &chord_sequence,
+            &event_for_bar,
+            &vec![],
             &jack_timing_info,
             &project_time_info,
         );
@@ -363,15 +376,9 @@ mod tests {
         assert_eq!(
             times,
             [
-                4, // Turn on II
-                4,
-                4,
-                9, // Turn of II
-                9,
-                9,
+                4,                   // Turn on II
+                9,                   // Turn off II
                 start_of_next_frame, // Turn on I at start of next bar
-                start_of_next_frame,
-                start_of_next_frame
             ]
         );
 
@@ -379,15 +386,12 @@ mod tests {
             .iter()
             .map(|(_, midi_event)| midi_event.to_midi()[0])
             .collect();
-        assert_eq!(
-            midi_statuses,
-            [0x90, 0x90, 0x90, 0x80, 0x80, 0x80, 0x90, 0x90, 0x90]
-        );
+        assert_eq!(midi_statuses, [0x90, 0x80, 0x90]);
 
         let midi_notes: Vec<u8> = events
             .iter()
             .map(|(_, midi_event)| midi_event.to_midi()[1])
             .collect();
-        assert_eq!(midi_notes, [62, 65, 69, 62, 65, 69, 60, 64, 67,]);
+        assert_eq!(midi_notes, [62, 62, 60]);
     }
 }
