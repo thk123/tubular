@@ -1,5 +1,7 @@
 use std::ops::Mul;
 
+use jack::Frames;
+
 use crate::{
     data_types::{
         chord_degree::{self, ChordDegree},
@@ -21,6 +23,12 @@ impl From<u32> for FrameOffset {
     }
 }
 
+impl From<FrameOffset> for Frames {
+    fn from(value: FrameOffset) -> Self {
+        value.0
+    }
+}
+
 #[derive(PartialEq, Eq, Debug)]
 pub(crate) enum MidiEvent {
     NoteOn(Note),
@@ -29,8 +37,8 @@ pub(crate) enum MidiEvent {
 
 #[derive(PartialEq, Eq, Debug)]
 pub(crate) struct Event {
-    bar_offset_frames: FrameOffset,
-    event: MidiEvent,
+    pub(crate) bar_offset_frames: FrameOffset,
+    pub(crate) event: MidiEvent,
 }
 
 impl Mul<FramesPerTatum> for Tatum {

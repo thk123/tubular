@@ -1,3 +1,6 @@
+use std::ops::{Add, Sub};
+
+use eframe::Frame;
 use jack::Frames;
 
 use crate::{
@@ -8,13 +11,16 @@ use crate::{
 use super::sequence_translation::FrameOffset;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
-pub(crate) struct FramesPerSecond(Frames);
+pub(crate) struct FramesPerSecond(usize);
 
-impl From<Frames> for FramesPerSecond {
-    fn from(value: Frames) -> Self {
+impl From<usize> for FramesPerSecond {
+    fn from(value: usize) -> Self {
         FramesPerSecond(value)
     }
 }
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
+pub(crate) struct FramesPerBar(Frames);
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub(crate) struct FramesPerBeat(Frames);
@@ -25,6 +31,50 @@ pub(crate) struct FramesPerTatum(Frames);
 impl From<FramesPerTatum> for Frames {
     fn from(value: FramesPerTatum) -> Self {
         value.0
+    }
+}
+
+impl From<FramesPerBar> for Frames {
+    fn from(value: FramesPerBar) -> Self {
+        value.0
+    }
+}
+
+impl FramesPerBar {
+    pub(crate) fn frames_through_bar(&self, total_frames: &Frames) -> FrameOffset {
+        let frames_through_bar = total_frames.rem_euclid(self.0);
+        FrameOffset::from(frames_through_bar)
+    }
+}
+
+impl Sub<FrameOffset> for FramesPerBar {
+    type Output = FrameOffset;
+
+    fn sub(self, rhs: FrameOffset) -> Self::Output {
+        let rhs_as_number: u32 = rhs.into();
+        if rhs_as_number > self.0 {
+            panic!("Frame offset bigger than frames per bar");
+        }
+        let offset: u32 = self.0 - rhs_as_number;
+        FrameOffset::from(offset)
+    }
+}
+
+impl Add<FrameOffset> for Frames {
+    type Output = Frames;
+
+    fn add(self, rhs: FrameOffset) -> Self::Output {
+        let offset: u32 = rhs.into();
+        self + offset
+    }
+}
+
+impl Sub<FrameOffset> for Frames {
+    type Output = Frames;
+
+    fn sub(self, rhs: FrameOffset) -> Self::Output {
+        let offset: u32 = rhs.into();
+        self - offset
     }
 }
 
@@ -42,6 +92,11 @@ impl TimingInfo {
         let frames_per_beat = self.frames_per_beat(&time_info);
         let tatums_per_beat = (tatum::TATUM_SUBDIVDISONS_PER_BAR as u32) / time_info.beats_per_bar;
         FramesPerTatum(frames_per_beat.0 / tatums_per_beat)
+    }
+
+    pub fn frames_per_bar(&self, time_info: &ProjectTimeInfo) -> FramesPerBar {
+        let frames_per_beat = self.frames_per_beat(&time_info);
+        FramesPerBar(frames_per_beat.0 * time_info.beats_per_bar)
     }
 
     pub fn frames_end_of_bar(&self, time_info: &ProjectTimeInfo) -> FrameOffset {

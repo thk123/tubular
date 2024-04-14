@@ -16,3 +16,9 @@ impl From<u8> for Note {
         Note(value)
     }
 }
+
+impl From<Note> for u8 {
+    fn from(value: Note) -> Self {
+        value.0
+    }
+}
