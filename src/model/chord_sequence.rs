@@ -22,6 +22,9 @@ impl Default for ChordSequence {
 }
 
 impl ChordSequence {
+    // Can we use https://doc.rust-lang.org/beta/nightly-rustc/rustc_index/macro.newtype_index.html
+    // with https://doc.rust-lang.org/beta/nightly-rustc/rustc_index/vec/struct.IndexVec.html
+
     pub fn new(chords: Vec<Option<ChordDegree>>) -> Result<ChordSequence, &'static str> {
         if chords.len() > TATUM_SUBDIVDISONS_PER_BAR {
             return Err("Invalid chord sequence");

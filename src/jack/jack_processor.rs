@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    sequence_translation::{self, chord_sequence_to_frame_offset, Event, FrameOffset},
+    sequence_translation::{self, chord_sequence_to_frame_offset, Event, FrameOffset, MidiEvent},
     timing_info::{FramesPerSecond, TimingInfo},
 };
 
@@ -106,6 +106,26 @@ fn notes_on_at_point(sequence: &Vec<Event>, frames_through_bar: FrameOffset) -> 
     live_notes
 }
 
+fn lingering_notes(
+    old_events: &Vec<Event>,
+    new_events: &Vec<Event>,
+    frames_through_bar: FrameOffset,
+) -> HashSet<Note> {
+    let old_notes_on = notes_on_at_point(old_events, frames_through_bar);
+    let new_notes_on = notes_on_at_point(new_events, frames_through_bar);
+    return old_notes_on.difference(&new_notes_on).cloned().collect();
+}
+
+fn ghost_notes(
+    old_events: &Vec<Event>,
+    new_events: &Vec<Event>,
+    frames_through_bar: FrameOffset,
+) -> HashSet<Note> {
+    let old_notes_on = notes_on_at_point(old_events, frames_through_bar);
+    let new_notes_on = notes_on_at_point(new_events, frames_through_bar);
+    return new_notes_on.difference(&old_notes_on).cloned().collect();
+}
+
 fn get_midi_events_for_next_n_frames(
     last_frame_time: Frames,
     n_frames: Frames,
@@ -114,9 +134,26 @@ fn get_midi_events_for_next_n_frames(
     jack_timing_info: &TimingInfo,
     project_timing_info: &ProjectTimeInfo,
 ) -> Vec<(u32, MidiMsg)> {
-    if sequence != old_sequence {}
+    let mut upcoming_events: Vec<(u32, MidiMsg)> = vec![];
+    let frames_through_bar = jack_timing_info
+        .frames_per_bar(&project_timing_info)
+        .frames_through_bar(&last_frame_time);
+    let lingering_notes = lingering_notes(old_sequence, sequence, frames_through_bar);
+    let ghost_notes = ghost_notes(old_sequence, sequence, frames_through_bar);
 
-    let mut upcoming_events: Vec<(u32, MidiMsg)> = sequence
+    let old_note_off_messages = lingering_notes
+        .iter()
+        .map(|note| MidiMsg::ChannelVoice {
+            channel: midi_msg::Channel::Ch1,
+            msg: midi_msg::ChannelVoiceMsg::NoteOff {
+                note: (*note).into(),
+                velocity: 64,
+            },
+        })
+        .map(|midi_msg| (0, midi_msg));
+    upcoming_events.extend(old_note_off_messages);
+
+    let upcoming_notes = sequence
         .iter()
         .filter(|&event| {
             is_upcoming_event(
@@ -126,6 +163,12 @@ fn get_midi_events_for_next_n_frames(
                 jack_timing_info,
                 project_timing_info,
             )
+        })
+        .filter(|event| {
+            if let MidiEvent::NoteOff(note_off) = event.event {
+                return !ghost_notes.contains(&note_off);
+            }
+            return true;
         })
         .map(|event| {
             let midi_event = match event.event {
@@ -154,9 +197,8 @@ fn get_midi_events_for_next_n_frames(
             let frames_to_go = time - last_frame_time;
             assert!(frames_to_go < n_frames);
             (frames_to_go, midi_event)
-        })
-        .collect();
-
+        });
+    upcoming_events.extend(upcoming_notes);
     upcoming_events.sort_by_key(|(time, _midi_message)| *time);
     upcoming_events
 }
@@ -197,12 +239,15 @@ impl ProcessHandler for JackProcessor {
 #[cfg(test)]
 mod tests {
 
-    use std::collections::HashSet;
+    use std::{collections::HashSet, vec};
 
     use crate::{
         data_types::{beats_per_minute::BeatsPerMinute, chord_degree::ChordDegree, note::Note},
         jack::{
-            jack_processor::{frames_of_next_offset, is_upcoming_event, notes_on_at_point},
+            jack_processor::{
+                frames_of_next_offset, ghost_notes, is_upcoming_event, lingering_notes,
+                notes_on_at_point,
+            },
             sequence_translation::{Event, FrameOffset, MidiEvent},
             timing_info::{FramesPerSecond, TimingInfo},
         },
@@ -419,6 +464,64 @@ mod tests {
     }
 
     #[test]
+    fn test_get_midi_events_for_next_n_frames_turns_off_old_note() {
+        // timing is 80 frames a bar, 20 frames a beat, 5 frames a Tatum
+        let project_time_info = ProjectTimeInfo {
+            bpm: BeatsPerMinute::from(120),
+            beats_per_bar: 4,
+        };
+        let jack_timing_info = TimingInfo {
+            frames_per_second: FramesPerSecond::from(40),
+        };
+
+        let old_events = vec![
+            Event {
+                event: MidiEvent::NoteOn(Note::from(70)),
+                bar_offset_frames: FrameOffset::from(0),
+            },
+            Event {
+                event: MidiEvent::NoteOff(Note::from(70)),
+                bar_offset_frames: FrameOffset::from(5),
+            },
+        ];
+
+        let event_for_bar = vec![
+            Event {
+                event: MidiEvent::NoteOn(Note::from(60)),
+                bar_offset_frames: FrameOffset::from(0),
+            },
+            Event {
+                event: MidiEvent::NoteOff(Note::from(60)),
+                bar_offset_frames: FrameOffset::from(5),
+            },
+        ];
+
+        let events = get_midi_events_for_next_n_frames(
+            83,
+            5,
+            &event_for_bar,
+            &old_events,
+            &jack_timing_info,
+            &project_time_info,
+        );
+
+        let times: Vec<u32> = events.iter().map(|(time, _)| *time).collect();
+        assert_eq!(times, [0]);
+
+        let midi_statuses: Vec<u8> = events
+            .iter()
+            .map(|(_, midi_event)| midi_event.to_midi()[0])
+            .collect();
+        assert_eq!(midi_statuses, [0x80]);
+
+        let midi_notes: Vec<u8> = events
+            .iter()
+            .map(|(_, midi_event)| midi_event.to_midi()[1])
+            .collect();
+        assert_eq!(midi_notes, [70]);
+    }
+
+    #[test]
     fn test_notes_on_at_point_before_first_event() {
         let notes_on = notes_on_at_point(
             &vec![Event {
@@ -492,5 +595,101 @@ mod tests {
         ];
         let notes_on = notes_on_at_point(&sequence, FrameOffset::from(2));
         assert_eq!(notes_on, HashSet::from([Note::from(62)]));
+    }
+
+    #[test]
+    fn test_lingering_notes_turns_old_notes_off() {
+        let old_sequence = vec![
+            Event {
+                bar_offset_frames: FrameOffset::from(0),
+                event: MidiEvent::NoteOn(Note::from(60)),
+            },
+            Event {
+                bar_offset_frames: FrameOffset::from(1),
+                event: MidiEvent::NoteOff(Note::from(60)),
+            },
+        ];
+
+        let new_sequence = vec![
+            Event {
+                bar_offset_frames: FrameOffset::from(0),
+                event: MidiEvent::NoteOn(Note::from(61)),
+            },
+            Event {
+                bar_offset_frames: FrameOffset::from(1),
+                event: MidiEvent::NoteOn(Note::from(61)),
+            },
+        ];
+
+        assert_eq!(
+            lingering_notes(&old_sequence, &new_sequence, FrameOffset::from(1)),
+            HashSet::from([Note::from(60)])
+        );
+    }
+
+    #[test]
+    fn test_lingering_notes_halfway_through_note() {
+        let old_sequence = vec![
+            Event {
+                bar_offset_frames: FrameOffset::from(0),
+                event: MidiEvent::NoteOn(Note::from(60)),
+            },
+            Event {
+                bar_offset_frames: FrameOffset::from(2),
+                event: MidiEvent::NoteOff(Note::from(60)),
+            },
+            Event {
+                bar_offset_frames: FrameOffset::from(4),
+                event: MidiEvent::NoteOn(Note::from(60)),
+            },
+            Event {
+                bar_offset_frames: FrameOffset::from(6),
+                event: MidiEvent::NoteOff(Note::from(60)),
+            },
+        ];
+
+        let new_sequence = vec![
+            Event {
+                bar_offset_frames: FrameOffset::from(4),
+                event: MidiEvent::NoteOn(Note::from(60)),
+            },
+            Event {
+                bar_offset_frames: FrameOffset::from(6),
+                event: MidiEvent::NoteOff(Note::from(60)),
+            },
+        ];
+        assert_eq!(
+            lingering_notes(&old_sequence, &new_sequence, FrameOffset::from(1)),
+            HashSet::from([Note::from(60)])
+        );
+    }
+
+    #[test]
+    fn test_ghost_note_includes_note_playing() {
+        let old_sequence = vec![
+            Event {
+                bar_offset_frames: FrameOffset::from(0),
+                event: MidiEvent::NoteOn(Note::from(70)),
+            },
+            Event {
+                bar_offset_frames: FrameOffset::from(5),
+                event: MidiEvent::NoteOff(Note::from(70)),
+            },
+        ];
+
+        let new_sequence = vec![
+            Event {
+                bar_offset_frames: FrameOffset::from(0),
+                event: MidiEvent::NoteOn(Note::from(60)),
+            },
+            Event {
+                bar_offset_frames: FrameOffset::from(6),
+                event: MidiEvent::NoteOff(Note::from(60)),
+            },
+        ];
+        assert_eq!(
+            ghost_notes(&old_sequence, &new_sequence, FrameOffset::from(1)),
+            HashSet::from([Note::from(60)])
+        );
     }
 }
