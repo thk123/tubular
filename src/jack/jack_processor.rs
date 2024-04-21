@@ -8,10 +8,7 @@ use midi_msg::MidiMsg;
 
 use crate::{
     data_types::note::Note,
-    model::{
-        project_state::ProjectState,
-        project_time_info::ProjectTimeInfo,
-    },
+    model::{project_state::ProjectState, project_time_info::ProjectTimeInfo},
 };
 
 use super::{
@@ -126,6 +123,25 @@ fn ghost_notes(
     return new_notes_on.difference(&old_notes_on).cloned().collect();
 }
 
+fn translate_to_raw(event: &MidiEvent) -> MidiMsg {
+    match event {
+        sequence_translation::MidiEvent::NoteOn(note) => MidiMsg::ChannelVoice {
+            channel: midi_msg::Channel::Ch1,
+            msg: midi_msg::ChannelVoiceMsg::NoteOn {
+                note: note.clone().into(),
+                velocity: 120,
+            },
+        },
+        sequence_translation::MidiEvent::NoteOff(note) => MidiMsg::ChannelVoice {
+            channel: midi_msg::Channel::Ch1,
+            msg: midi_msg::ChannelVoiceMsg::NoteOff {
+                note: note.clone().into(),
+                velocity: 64,
+            },
+        },
+    }
+}
+
 fn get_midi_events_for_next_n_frames(
     last_frame_time: Frames,
     n_frames: Frames,
@@ -171,22 +187,7 @@ fn get_midi_events_for_next_n_frames(
             true
         })
         .map(|event| {
-            let midi_event = match event.event {
-                sequence_translation::MidiEvent::NoteOn(note) => MidiMsg::ChannelVoice {
-                    channel: midi_msg::Channel::Ch1,
-                    msg: midi_msg::ChannelVoiceMsg::NoteOn {
-                        note: note.into(),
-                        velocity: 120,
-                    },
-                },
-                sequence_translation::MidiEvent::NoteOff(note) => MidiMsg::ChannelVoice {
-                    channel: midi_msg::Channel::Ch1,
-                    msg: midi_msg::ChannelVoiceMsg::NoteOff {
-                        note: note.into(),
-                        velocity: 64,
-                    },
-                },
-            };
+            let midi_msg = translate_to_raw(&event.event);
             let time = frames_of_next_offset(
                 last_frame_time,
                 event.bar_offset_frames,
@@ -196,7 +197,7 @@ fn get_midi_events_for_next_n_frames(
             assert!(time >= last_frame_time);
             let frames_to_go = time - last_frame_time;
             assert!(frames_to_go < n_frames);
-            (frames_to_go, midi_event)
+            (frames_to_go, midi_msg)
         });
     upcoming_events.extend(upcoming_notes);
     upcoming_events.sort_by_key(|(time, _midi_message)| *time);
@@ -251,7 +252,7 @@ mod tests {
             sequence_translation::{Event, FrameOffset, MidiEvent},
             timing_info::{FramesPerSecond, TimingInfo},
         },
-        model::{project_time_info::ProjectTimeInfo},
+        model::project_time_info::ProjectTimeInfo,
     };
 
     use super::get_midi_events_for_next_n_frames;
