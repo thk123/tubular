@@ -9,7 +9,7 @@ use midi_msg::MidiMsg;
 use crate::{
     data_types::note::Note,
     model::{
-        chord_sequence::ChordSequence, project_state::ProjectState,
+        project_state::ProjectState,
         project_time_info::ProjectTimeInfo,
     },
 };
@@ -100,7 +100,7 @@ fn notes_on_at_point(sequence: &Vec<Event>, frames_through_bar: FrameOffset) -> 
     {
         match &event.event {
             sequence_translation::MidiEvent::NoteOn(note) => live_notes.insert(*note),
-            sequence_translation::MidiEvent::NoteOff(note) => live_notes.remove(&note),
+            sequence_translation::MidiEvent::NoteOff(note) => live_notes.remove(note),
         };
     }
     live_notes
@@ -136,7 +136,7 @@ fn get_midi_events_for_next_n_frames(
 ) -> Vec<(u32, MidiMsg)> {
     let mut upcoming_events: Vec<(u32, MidiMsg)> = vec![];
     let frames_through_bar = jack_timing_info
-        .frames_per_bar(&project_timing_info)
+        .frames_per_bar(project_timing_info)
         .frames_through_bar(&last_frame_time);
     let lingering_notes = lingering_notes(old_sequence, sequence, frames_through_bar);
     let ghost_notes = ghost_notes(old_sequence, sequence, frames_through_bar);
@@ -168,7 +168,7 @@ fn get_midi_events_for_next_n_frames(
             if let MidiEvent::NoteOff(note_off) = event.event {
                 return !ghost_notes.contains(&note_off);
             }
-            return true;
+            true
         })
         .map(|event| {
             let midi_event = match event.event {
@@ -242,7 +242,7 @@ mod tests {
     use std::{collections::HashSet, vec};
 
     use crate::{
-        data_types::{beats_per_minute::BeatsPerMinute, chord_degree::ChordDegree, note::Note},
+        data_types::{beats_per_minute::BeatsPerMinute, note::Note},
         jack::{
             jack_processor::{
                 frames_of_next_offset, ghost_notes, is_upcoming_event, lingering_notes,
@@ -251,7 +251,7 @@ mod tests {
             sequence_translation::{Event, FrameOffset, MidiEvent},
             timing_info::{FramesPerSecond, TimingInfo},
         },
-        model::{chord_sequence::ChordSequence, project_time_info::ProjectTimeInfo},
+        model::{project_time_info::ProjectTimeInfo},
     };
 
     use super::get_midi_events_for_next_n_frames;
