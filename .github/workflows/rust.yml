@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Dependencies
-      run: sudo apt-get install jackd
+      run: sudo apt update && sudo apt install jackd libjack0 libjack-dev
     - name: Build
       run: cargo build --verbose
     - name: Clippy
