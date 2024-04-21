@@ -197,28 +197,6 @@ fn get_midi_events_for_next_n_frames(
     upcoming_events
 }
 
-fn get_midi_messages_for_next_n_frames(
-    last_frame_time: Frames,
-    n_frames: Frames,
-    sequence: &Vec<Event>,
-    old_sequence: &Vec<Event>,
-    jack_timing_info: &TimingInfo,
-    project_timing_info: &ProjectTimeInfo,
-) -> Vec<(u32, MidiMsg)> {
-    let upcoming_events = get_midi_events_for_next_n_frames(
-        last_frame_time,
-        n_frames,
-        sequence,
-        old_sequence,
-        jack_timing_info,
-        project_timing_info,
-    );
-    upcoming_events
-        .iter()
-        .map(|(offset, event)| (offset.clone(), translate_to_raw(event)))
-        .collect()
-}
-
 impl ProcessHandler for JackProcessor {
     fn process(&mut self, _: &jack::Client, _process_scope: &jack::ProcessScope) -> jack::Control {
         let current_project_state = self.project_state.read().unwrap();
@@ -228,7 +206,7 @@ impl ProcessHandler for JackProcessor {
             &current_project_state.time,
         );
 
-        let upcoming_events = get_midi_messages_for_next_n_frames(
+        let upcoming_events = get_midi_events_for_next_n_frames(
             _process_scope.last_frame_time(),
             _process_scope.n_frames(),
             &sequence,
@@ -240,10 +218,11 @@ impl ProcessHandler for JackProcessor {
         let mut chord_port_writer = self.chord_port.writer(_process_scope);
         for (time, upcoming_event) in upcoming_events {
             assert!(time < _process_scope.n_frames());
+            let midi_msg = translate_to_raw(&upcoming_event);
             chord_port_writer
                 .write(&jack::RawMidi {
                     time,
-                    bytes: &upcoming_event.to_midi(),
+                    bytes: &midi_msg.to_midi(),
                 })
                 .unwrap();
         }
@@ -261,8 +240,8 @@ mod tests {
         data_types::{beats_per_minute::BeatsPerMinute, note::Note},
         jack::{
             jack_processor::{
-                frames_of_next_offset, get_midi_messages_for_next_n_frames, ghost_notes,
-                is_upcoming_event, lingering_notes, notes_on_at_point,
+                frames_of_next_offset, ghost_notes, is_upcoming_event, lingering_notes,
+                notes_on_at_point,
             },
             sequence_translation::{Event, FrameOffset, MidiEvent},
             timing_info::{FramesPerSecond, TimingInfo},
