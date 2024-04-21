@@ -25,7 +25,7 @@ impl From<FrameOffset> for Frames {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub(crate) enum MidiEvent {
     NoteOn(Note),
     NoteOff(Note),

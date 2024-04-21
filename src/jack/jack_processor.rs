@@ -142,15 +142,15 @@ fn translate_to_raw(event: &MidiEvent) -> MidiMsg {
     }
 }
 
-fn get_midi_events_for_next_n_frames(
+pub(crate) fn get_midi_events_for_next_n_frames(
     last_frame_time: Frames,
     n_frames: Frames,
     sequence: &Vec<Event>,
     old_sequence: &Vec<Event>,
     jack_timing_info: &TimingInfo,
     project_timing_info: &ProjectTimeInfo,
-) -> Vec<(u32, MidiMsg)> {
-    let mut upcoming_events: Vec<(u32, MidiMsg)> = vec![];
+) -> Vec<(u32, MidiEvent)> {
+    let mut upcoming_events: Vec<(u32, MidiEvent)> = vec![];
     let frames_through_bar = jack_timing_info
         .frames_per_bar(project_timing_info)
         .frames_through_bar(&last_frame_time);
@@ -159,13 +159,7 @@ fn get_midi_events_for_next_n_frames(
 
     let old_note_off_messages = lingering_notes
         .iter()
-        .map(|note| MidiMsg::ChannelVoice {
-            channel: midi_msg::Channel::Ch1,
-            msg: midi_msg::ChannelVoiceMsg::NoteOff {
-                note: (*note).into(),
-                velocity: 64,
-            },
-        })
+        .map(|note| MidiEvent::NoteOff(note.clone()))
         .map(|midi_msg| (0, midi_msg));
     upcoming_events.extend(old_note_off_messages);
 
@@ -187,7 +181,6 @@ fn get_midi_events_for_next_n_frames(
             true
         })
         .map(|event| {
-            let midi_msg = translate_to_raw(&event.event);
             let time = frames_of_next_offset(
                 last_frame_time,
                 event.bar_offset_frames,
@@ -197,11 +190,33 @@ fn get_midi_events_for_next_n_frames(
             assert!(time >= last_frame_time);
             let frames_to_go = time - last_frame_time;
             assert!(frames_to_go < n_frames);
-            (frames_to_go, midi_msg)
+            (frames_to_go, event.event.clone())
         });
     upcoming_events.extend(upcoming_notes);
     upcoming_events.sort_by_key(|(time, _midi_message)| *time);
     upcoming_events
+}
+
+pub(crate) fn get_midi_messages_for_next_n_frames(
+    last_frame_time: Frames,
+    n_frames: Frames,
+    sequence: &Vec<Event>,
+    old_sequence: &Vec<Event>,
+    jack_timing_info: &TimingInfo,
+    project_timing_info: &ProjectTimeInfo,
+) -> Vec<(u32, MidiMsg)> {
+    let upcoming_events = get_midi_events_for_next_n_frames(
+        last_frame_time,
+        n_frames,
+        sequence,
+        old_sequence,
+        jack_timing_info,
+        project_timing_info,
+    );
+    upcoming_events
+        .iter()
+        .map(|(offset, event)| (offset.clone(), translate_to_raw(event)))
+        .collect()
 }
 
 impl ProcessHandler for JackProcessor {
@@ -213,7 +228,7 @@ impl ProcessHandler for JackProcessor {
             &current_project_state.time,
         );
 
-        let upcoming_events = get_midi_events_for_next_n_frames(
+        let upcoming_events = get_midi_messages_for_next_n_frames(
             _process_scope.last_frame_time(),
             _process_scope.n_frames(),
             &sequence,
@@ -246,8 +261,8 @@ mod tests {
         data_types::{beats_per_minute::BeatsPerMinute, note::Note},
         jack::{
             jack_processor::{
-                frames_of_next_offset, ghost_notes, is_upcoming_event, lingering_notes,
-                notes_on_at_point,
+                frames_of_next_offset, get_midi_messages_for_next_n_frames, ghost_notes,
+                is_upcoming_event, lingering_notes, notes_on_at_point,
             },
             sequence_translation::{Event, FrameOffset, MidiEvent},
             timing_info::{FramesPerSecond, TimingInfo},
@@ -376,7 +391,7 @@ mod tests {
             },
         ];
 
-        let events = get_midi_events_for_next_n_frames(
+        let events = get_midi_messages_for_next_n_frames(
             80,
             10, // processing two tatums
             &event_for_bar,
@@ -431,7 +446,7 @@ mod tests {
             },
         ];
 
-        let events = get_midi_events_for_next_n_frames(
+        let events = get_midi_messages_for_next_n_frames(
             86,
             79, // just shy of a whole bar
             &event_for_bar,
@@ -497,7 +512,7 @@ mod tests {
             },
         ];
 
-        let events = get_midi_events_for_next_n_frames(
+        let events = get_midi_messages_for_next_n_frames(
             83,
             5,
             &event_for_bar,
