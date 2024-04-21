@@ -391,7 +391,7 @@ mod tests {
             },
         ];
 
-        let events = get_midi_messages_for_next_n_frames(
+        let events = get_midi_events_for_next_n_frames(
             80,
             10, // processing two tatums
             &event_for_bar,
@@ -400,20 +400,13 @@ mod tests {
             &project_time_info,
         );
 
-        let times: Vec<u32> = events.iter().map(|(time, _)| *time).collect();
-        assert_eq!(times, [0, 5]);
-
-        let midi_statuses: Vec<u8> = events
-            .iter()
-            .map(|(_, midi_event)| midi_event.to_midi()[0])
-            .collect();
-        assert_eq!(midi_statuses, [0x90, 0x80]);
-
-        let midi_notes: Vec<u8> = events
-            .iter()
-            .map(|(_, midi_event)| midi_event.to_midi()[1])
-            .collect();
-        assert_eq!(midi_notes, [60, 60]);
+        assert_eq!(
+            events,
+            vec![
+                (0, MidiEvent::NoteOn(Note::from(60))),
+                (5, MidiEvent::NoteOff(Note::from(60))),
+            ]
+        );
     }
 
     #[test]
@@ -446,7 +439,7 @@ mod tests {
             },
         ];
 
-        let events = get_midi_messages_for_next_n_frames(
+        let events = get_midi_events_for_next_n_frames(
             86,
             79, // just shy of a whole bar
             &event_for_bar,
@@ -455,28 +448,15 @@ mod tests {
             &project_time_info,
         );
 
-        let times: Vec<u32> = events.iter().map(|(time, _)| *time).collect();
         let start_of_next_frame = 160 - 86;
         assert_eq!(
-            times,
-            [
-                4,                   // Turn on II
-                9,                   // Turn off II
-                start_of_next_frame, // Turn on I at start of next bar
+            events,
+            vec![
+                (4, MidiEvent::NoteOn(Note::from(62))),  // Turn on 62
+                (9, MidiEvent::NoteOff(Note::from(62))), // Turn off 62
+                (start_of_next_frame, MidiEvent::NoteOn(Note::from(60))), // Turn on 60 at start of next bar
             ]
         );
-
-        let midi_statuses: Vec<u8> = events
-            .iter()
-            .map(|(_, midi_event)| midi_event.to_midi()[0])
-            .collect();
-        assert_eq!(midi_statuses, [0x90, 0x80, 0x90]);
-
-        let midi_notes: Vec<u8> = events
-            .iter()
-            .map(|(_, midi_event)| midi_event.to_midi()[1])
-            .collect();
-        assert_eq!(midi_notes, [62, 62, 60]);
     }
 
     #[test]
@@ -512,7 +492,7 @@ mod tests {
             },
         ];
 
-        let events = get_midi_messages_for_next_n_frames(
+        let events = get_midi_events_for_next_n_frames(
             83,
             5,
             &event_for_bar,
@@ -521,20 +501,7 @@ mod tests {
             &project_time_info,
         );
 
-        let times: Vec<u32> = events.iter().map(|(time, _)| *time).collect();
-        assert_eq!(times, [0]);
-
-        let midi_statuses: Vec<u8> = events
-            .iter()
-            .map(|(_, midi_event)| midi_event.to_midi()[0])
-            .collect();
-        assert_eq!(midi_statuses, [0x80]);
-
-        let midi_notes: Vec<u8> = events
-            .iter()
-            .map(|(_, midi_event)| midi_event.to_midi()[1])
-            .collect();
-        assert_eq!(midi_notes, [70]);
+        assert_eq!(events, vec![(0, MidiEvent::NoteOff(Note::from(70)))]);
     }
 
     #[test]
