@@ -142,7 +142,7 @@ fn translate_to_raw(event: &MidiEvent) -> MidiMsg {
     }
 }
 
-pub(crate) fn get_midi_events_for_next_n_frames(
+fn get_midi_events_for_next_n_frames(
     last_frame_time: Frames,
     n_frames: Frames,
     sequence: &Vec<Event>,
@@ -197,7 +197,7 @@ pub(crate) fn get_midi_events_for_next_n_frames(
     upcoming_events
 }
 
-pub(crate) fn get_midi_messages_for_next_n_frames(
+fn get_midi_messages_for_next_n_frames(
     last_frame_time: Frames,
     n_frames: Frames,
     sequence: &Vec<Event>,
