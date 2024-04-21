@@ -123,7 +123,7 @@ fn ghost_notes(
     return new_notes_on.difference(&old_notes_on).cloned().collect();
 }
 
-fn translate_to_raw(event: &MidiEvent) -> MidiMsg {
+fn translate_to_midi_message(event: &MidiEvent) -> MidiMsg {
     match event {
         sequence_translation::MidiEvent::NoteOn(note) => MidiMsg::ChannelVoice {
             channel: midi_msg::Channel::Ch1,
@@ -218,7 +218,7 @@ impl ProcessHandler for JackProcessor {
         let mut chord_port_writer = self.chord_port.writer(_process_scope);
         for (time, upcoming_event) in upcoming_events {
             assert!(time < _process_scope.n_frames());
-            let midi_msg = translate_to_raw(&upcoming_event);
+            let midi_msg = translate_to_midi_message(&upcoming_event);
             chord_port_writer
                 .write(&jack::RawMidi {
                     time,
