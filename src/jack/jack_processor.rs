@@ -128,14 +128,14 @@ fn translate_to_midi_message(event: &MidiEvent) -> MidiMsg {
         sequence_translation::MidiEvent::NoteOn(note) => MidiMsg::ChannelVoice {
             channel: midi_msg::Channel::Ch1,
             msg: midi_msg::ChannelVoiceMsg::NoteOn {
-                note: note.clone().into(),
+                note: (*note).into(),
                 velocity: 120,
             },
         },
         sequence_translation::MidiEvent::NoteOff(note) => MidiMsg::ChannelVoice {
             channel: midi_msg::Channel::Ch1,
             msg: midi_msg::ChannelVoiceMsg::NoteOff {
-                note: note.clone().into(),
+                note: (*note).into(),
                 velocity: 64,
             },
         },
@@ -159,7 +159,7 @@ fn get_midi_events_for_next_n_frames(
 
     let old_note_off_messages = lingering_notes
         .iter()
-        .map(|note| MidiEvent::NoteOff(note.clone()))
+        .map(|note| MidiEvent::NoteOff(*note))
         .map(|midi_msg| (0, midi_msg));
     upcoming_events.extend(old_note_off_messages);
 
